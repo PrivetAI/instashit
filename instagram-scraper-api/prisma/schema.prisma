@@ -1,0 +1,77 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Session {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique
+  cookies   Json
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Job {
+  id         Int       @id @default(autoincrement())
+  query      String
+  queryType  String    // "hashtag" или "keyword"
+  videoLimit Int       @default(10)
+  commentLimit Int     @default(10)
+  status     String    @default("pending")
+  progress   Int       @default(0)
+  stopped    Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  videos     Video[]
+  logs       Log[]
+}
+
+model Video {
+  id          Int        @id @default(autoincrement())
+  jobId       Int
+  igVideoId   String     @unique
+  url         String
+  description String?
+  isRelevant  Boolean?
+  commented   Boolean    @default(false)
+  commentedAt DateTime?
+  job         Job        @relation(fields: [jobId], references: [id])
+  comments    Comment[]
+}
+
+model Comment {
+  id           Int        @id @default(autoincrement())
+  videoId      Int
+  igCommentId  String     @unique
+  text         String
+  author       String
+  postedAt     DateTime
+  isOurComment Boolean    @default(false)
+  analysis     Analysis?
+  video        Video      @relation(fields: [videoId], references: [id])
+}
+
+model Analysis {
+  id            Int      @id @default(autoincrement())
+  commentId     Int      @unique
+  videoId       Int
+  relevant      Boolean
+  tone          String   // professional/casual/motivational
+  generatedText String?
+  analyzedAt    DateTime @default(now())
+  comment       Comment  @relation(fields: [commentId], references: [id])
+}
+
+model Log {
+  id        Int      @id @default(autoincrement())
+  jobId     Int
+  level     String
+  message   String
+  timestamp DateTime @default(now())
+  job       Job      @relation(fields: [jobId], references: [id])
+}
