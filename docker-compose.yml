@@ -13,7 +13,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-scraper}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-scraper} -d ${DB_NAME:-instagram_scraper}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -45,12 +45,13 @@ services:
     ports:
       - "${API_PORT:-3000}:3000"
     volumes:
-      - ./instagram-scraper-api/src:/app/src
-      - ./instagram-scraper-api/prisma:/app/prisma
+      - ./instagram-scraper-api:/app
       - api_node_modules:/app/node_modules
     command: >
       sh -c "
-        npx prisma migrate deploy &&
+        npm install &&
+        npx prisma generate &&
+        npx prisma db push &&
         npm run start:dev
       "
 
@@ -68,9 +69,13 @@ services:
     ports:
       - "${UI_PORT:-5173}:5173"
     volumes:
-      - ./instagram-scraper-ui/src:/app/src
-      - ./instagram-scraper-ui/public:/app/public
+      - ./instagram-scraper-ui:/app
       - ui_node_modules:/app/node_modules
+    command: >
+      sh -c "
+        npm install &&
+        npm run dev
+      "
 
 volumes:
   postgres_data:
