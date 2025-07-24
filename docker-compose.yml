@@ -1,82 +1,40 @@
+version: '3.8'
+
 services:
-  # PostgreSQL Database
-  postgres:
-    image: postgres:15-alpine
-    container_name: instagram-scraper-db
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${DB_USER:-scraper}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-scraper123}
-      POSTGRES_DB: ${DB_NAME:-instagram_scraper}
+  backend:
+    build: ./backend
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - CHROME_ENDPOINT=${CHROME_ENDPOINT:-ws://host.docker.internal:9222/devtools/browser/}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - VIDEO_LIMIT=${VIDEO_LIMIT:-10}
+      - COMMENT_LIMIT=${COMMENT_LIMIT:-20}
+      - PORT=3001
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-scraper} -d ${DB_NAME:-instagram_scraper}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - ./backend:/app
+      - /app/node_modules
+      - ./data:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - scraper-network
 
-  # Backend API
-  api:
-    build:
-      context: ./instagram-scraper-api
-      dockerfile: Dockerfile
-    container_name: instagram-scraper-api
-    restart: unless-stopped
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:3001
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
     depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      # Database
-      DATABASE_URL: postgresql://${DB_USER:-scraper}:${DB_PASSWORD:-scraper123}@postgres:5432/${DB_NAME:-instagram_scraper}
-      # OpenAI
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4}
-      # App
-      NODE_ENV: development
-      PORT: 3000
-      # Instagram
-      ACTION_DELAY: ${ACTION_DELAY:-5000}
-      # Puppeteer
-      PUPPETEER_HEADLESS: ${PUPPETEER_HEADLESS:-true}
-      PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium-browser
-    ports:
-      - "${API_PORT:-3000}:3000"
-    volumes:
-      - ./instagram-scraper-api:/app
-      - api_node_modules:/app/node_modules
-    command: >
-      sh -c "
-        npm install &&
-        npx prisma generate &&
-        npx prisma db push &&
-        npm run start:dev
-      "
+      - backend
+    networks:
+      - scraper-network
 
-  # Frontend UI
-  ui:
-    build:
-      context: ./instagram-scraper-ui
-      dockerfile: Dockerfile
-    container_name: instagram-scraper-ui
-    restart: unless-stopped
-    depends_on:
-      - api
-    environment:
-      VITE_API_URL: http://localhost:3000/api
-    ports:
-      - "${UI_PORT:-5173}:5173"
-    volumes:
-      - ./instagram-scraper-ui/src:/app/src
-      - ./instagram-scraper-ui/public:/app/public
-      - ./instagram-scraper-ui/index.html:/app/index.html
-      - ./instagram-scraper-ui/vite.config.ts:/app/vite.config.ts
-      - ./instagram-scraper-ui/tsconfig.json:/app/tsconfig.json
-      - ./instagram-scraper-ui/tsconfig.node.json:/app/tsconfig.node.json
-
-volumes:
-  postgres_data:
-  api_node_modules:
-  ui_node_modules:
+networks:
+  scraper-network:
+    driver: bridge
