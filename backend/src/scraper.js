@@ -6,18 +6,15 @@ const { sleep, randomDelay, humanLikeMouseMove, humanLikeScroll } = require('./u
 
 async function getWSEndpoint() {
   if (!process.env.CHROME_ENDPOINT) {
-    throw new Error('CHROME_ENDPOINT environment variable is required. Please set it in your .env file like: CHROME_ENDPOINT=ws://host.docker.internal:9222/devtools/browser/[browser-id]');
+    throw new Error('CHROME_ENDPOINT environment variable is required. Please set it in your .env file like: CHROME_ENDPOINT=ws://localhost:9222/devtools/browser/[browser-id]');
   }
   
-  // Заменяем localhost на host.docker.internal для подключения из контейнера к хосту
-  let endpoint = process.env.CHROME_ENDPOINT;
-  if (endpoint.includes('localhost')) {
-    endpoint = endpoint.replace('localhost', 'host.docker.internal');
-    console.log('Converted localhost to host.docker.internal:', endpoint);
-  }
-  
-  return endpoint;
-} 
+  // Используем endpoint как есть, без замены
+  // Поскольку backend работает в network_mode: "host", он может обращаться к localhost напрямую
+  return process.env.CHROME_ENDPOINT;
+}
+
+
 async function scrapeAndAnalyze(jobId, query) {
   const videoLimit = parseInt(process.env.VIDEO_LIMIT) || 10;
   const commentLimit = parseInt(process.env.COMMENT_LIMIT) || 20;
