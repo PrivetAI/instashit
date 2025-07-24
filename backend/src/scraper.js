@@ -3,59 +3,77 @@ const { getDB } = require('./db');
 const { analyzeComment, generateResponse } = require('./ai');
 const { sleep, randomDelay, humanLikeMouseMove, humanLikeScroll } = require('./utils');
 
+
+async function getWSEndpoint() {
+  if (!process.env.CHROME_ENDPOINT) {
+    throw new Error('CHROME_ENDPOINT environment variable is required. Please set it in your .env file like: CHROME_ENDPOINT=ws://host.docker.internal:9222/devtools/browser/[browser-id]');
+  }
+  return process.env.CHROME_ENDPOINT;
+}
+
 async function scrapeAndAnalyze(jobId, query) {
   const videoLimit = parseInt(process.env.VIDEO_LIMIT) || 10;
   const commentLimit = parseInt(process.env.COMMENT_LIMIT) || 20;
   
   console.log(`Starting scrape job ${jobId} for query: ${query}`);
   
-  const browser = await puppeteer.connect({
-    browserWSEndpoint: process.env.CHROME_ENDPOINT,
-    defaultViewport: null
-  });
-  
-  const page = await browser.newPage();
-  
+  let browser;
   try {
-    // Navigate to hashtag page
-    const url = `https://instagram.com/explore/tags/${encodeURIComponent(query)}/`;
-    await page.goto(url, { waitUntil: 'networkidle2' });
+    const wsEndpoint = await getWSEndpoint();
+    console.log('Connecting to Chrome at:', wsEndpoint);
     
-    // Wait for content to load
-    await sleep(5000);
+    browser = await puppeteer.connect({
+      browserWSEndpoint: wsEndpoint,
+      defaultViewport: null
+    });
     
-    // Check for captcha
-    const captchaPresent = await page.$('input[name="captcha"]') !== null;
-    if (captchaPresent) {
-      console.log('Captcha detected, waiting for manual resolution...');
-      const app = require('./index');
-      app.setCaptchaWaiting(true);
+    const page = await browser.newPage();
+    
+    try {
+      // Navigate to hashtag page
+      const url = `https://instagram.com/explore/tags/${encodeURIComponent(query)}/`;
+      await page.goto(url, { waitUntil: 'networkidle2' });
       
-      // Wait for captcha to be resolved
-      while (await page.$('input[name="captcha"]') !== null) {
-        await sleep(2000);
+      // Wait for content to load
+      await sleep(5000);
+      
+      // Check for captcha
+      const captchaPresent = await page.$('input[name="captcha"]') !== null;
+      if (captchaPresent) {
+        console.log('Captcha detected, waiting for manual resolution...');
+        const app = require('./index');
+        app.setCaptchaWaiting(true);
+        
+        // Wait for captcha to be resolved
+        while (await page.$('input[name="captcha"]') !== null) {
+          await sleep(2000);
+        }
+        
+        app.setCaptchaWaiting(false);
+        console.log('Captcha resolved, continuing...');
       }
       
-      app.setCaptchaWaiting(false);
-      console.log('Captcha resolved, continuing...');
+      // Collect video links
+      const videos = await collectVideos(page, videoLimit);
+      console.log(`Collected ${videos.length} videos`);
+      
+      // Process each video
+      for (const video of videos) {
+        await processVideo(page, jobId, video, commentLimit);
+        await randomDelay(3000, 5000);
+      }
+      
+    } catch (error) {
+      console.error('Scraping error:', error);
+      throw error;
+    } finally {
+      await page.close();
     }
-    
-    // Collect video links
-    const videos = await collectVideos(page, videoLimit);
-    console.log(`Collected ${videos.length} videos`);
-    
-    // Process each video
-    for (const video of videos) {
-      await processVideo(page, jobId, video, commentLimit);
-      await randomDelay(3000, 5000);
-    }
-    
   } catch (error) {
-    console.error('Scraping error:', error);
+    console.error('Browser connection error:', error);
     throw error;
-  } finally {
-    await page.close();
   }
+  // Note: We don't close the browser since it's an external Chrome instance
 }
 
 async function collectVideos(page, limit) {
