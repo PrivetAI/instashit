@@ -34,7 +34,7 @@ async function loadCookies(page) {
   }
 }
 
-async function checkAuth(page, app) {
+async function checkAuth(page, authState) {
   // Navigate to Instagram
   await page.goto('https://instagram.com', { waitUntil: 'networkidle2' });
   await randomDelay(2000, 4000);
@@ -45,14 +45,14 @@ async function checkAuth(page, app) {
   
   if (!isLoggedIn) {
     console.log('Not logged in, waiting for manual login...');
-    app.setAuthWaiting(true);
+    authState.setAuthWaiting(true);
     
     // Wait for login
     while (true) {
       await sleep(2000);
       
       // Check if user marked as logged in from UI
-      if (!app.getAuthWaiting()) {
+      if (!authState.getAuthWaiting()) {
         break;
       }
       
@@ -64,7 +64,7 @@ async function checkAuth(page, app) {
       }
     }
     
-    app.setAuthWaiting(false);
+    authState.setAuthWaiting(false);
     console.log('Login confirmed, saving cookies...');
     await saveCookies(page);
     await randomDelay(2000, 3000);
@@ -73,14 +73,13 @@ async function checkAuth(page, app) {
   }
 }
 
-async function scrapeAndAnalyze(jobId, query) {
+async function scrapeAndAnalyze(jobId, query, authState) {
   const videoLimit = parseInt(process.env.VIDEO_LIMIT) || 10;
   const commentLimit = parseInt(process.env.COMMENT_LIMIT) || 20;
   
   console.log(`Starting scrape job ${jobId} for query: ${query}`);
   
   let browser;
-  const app = require('./index');
   
   try {
     const wsEndpoint = await getWSEndpoint();
@@ -100,8 +99,8 @@ async function scrapeAndAnalyze(jobId, query) {
       // Load cookies if available
       const cookiesLoaded = await loadCookies(page);
       
-      // Check authentication
-      await checkAuth(page, app);
+      // Check authentication - передаем authState как параметр
+      await checkAuth(page, authState);
       
       // Random delay before navigation
       await randomDelay(1000, 3000);
@@ -119,10 +118,10 @@ async function scrapeAndAnalyze(jobId, query) {
       
       if (captchaPresent) {
         console.log('Captcha detected, waiting for manual resolution...');
-        app.setCaptchaWaiting(true);
+        authState.setCaptchaWaiting(true);
         
         // Wait for captcha to be resolved
-        while (app.getCaptchaWaiting()) {
+        while (authState.getCaptchaWaiting()) {
           await sleep(2000);
         }
         

@@ -125,7 +125,7 @@ app.post('/api/scrape', async (req, res) => {
     // Import scraper with auth state
     const { scrapeAndAnalyze } = require('./scraper');
     
-    // Start scraping in background
+    // Start scraping in background - передаем authState как параметр
     scrapeAndAnalyze(jobId, query, authState)
       .then(() => {
         db.run('UPDATE jobs SET status = ? WHERE id = ?', ['completed', jobId]);
@@ -174,4 +174,5 @@ app.listen(PORT, () => {
   console.log(`Backend running on port ${PORT}`);
 });
 
-module.exports = app;
+// Экспортируем и app, и authState
+module.exports = { app, authState };
