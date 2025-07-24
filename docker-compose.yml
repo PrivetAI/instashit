@@ -3,8 +3,7 @@ version: '3.8'
 services:
   backend:
     build: ./backend
-    ports:
-      - "3001:3001"
+    network_mode: "host"  # Добавьте эту строку
     environment:
       - NODE_ENV=development
       - CHROME_ENDPOINT=${CHROME_ENDPOINT}
@@ -16,8 +15,6 @@ services:
       - ./backend:/app
       - /app/node_modules
       - ./data:/app/data
-    networks:
-      - scraper-network
 
   frontend:
     build: ./frontend
