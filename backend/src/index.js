@@ -1,7 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 const { initDB } = require('./db');
-const { scrapeAndAnalyze } = require('./scraper');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -10,10 +9,23 @@ app.use(cors());
 app.use(express.json());
 
 let captchaWaiting = false;
+let authWaiting = false;
 let currentJob = null;
 
 // Initialize database
 initDB();
+
+// Auth and captcha state functions
+const authState = {
+  setAuthWaiting: (waiting) => {
+    authWaiting = waiting;
+  },
+  getAuthWaiting: () => authWaiting,
+  setCaptchaWaiting: (waiting) => {
+    captchaWaiting = waiting;
+  },
+  getCaptchaWaiting: () => captchaWaiting
+};
 
 // Get all jobs
 app.get('/api/jobs', async (req, res) => {
@@ -110,8 +122,11 @@ app.post('/api/scrape', async (req, res) => {
     const jobId = this.lastID;
     currentJob = { id: jobId, status: 'running' };
     
+    // Import scraper with auth state
+    const { scrapeAndAnalyze } = require('./scraper');
+    
     // Start scraping in background
-    scrapeAndAnalyze(jobId, query)
+    scrapeAndAnalyze(jobId, query, authState)
       .then(() => {
         db.run('UPDATE jobs SET status = ? WHERE id = ?', ['completed', jobId]);
         currentJob = null;
@@ -130,8 +145,19 @@ app.post('/api/scrape', async (req, res) => {
 app.get('/api/status', (req, res) => {
   res.json({
     currentJob,
-    captchaWaiting
+    captchaWaiting,
+    authWaiting
   });
+});
+
+// Auth endpoints
+app.get('/api/auth/status', (req, res) => {
+  res.json({ waiting: authWaiting });
+});
+
+app.post('/api/auth/resolved', (req, res) => {
+  authWaiting = false;
+  res.json({ success: true });
 });
 
 // Captcha endpoints
@@ -143,11 +169,6 @@ app.post('/api/captcha/resolved', (req, res) => {
   captchaWaiting = false;
   res.json({ success: true });
 });
-
-// Set captcha waiting (called by scraper)
-app.setCaptchaWaiting = (waiting) => {
-  captchaWaiting = waiting;
-};
 
 app.listen(PORT, () => {
   console.log(`Backend running on port ${PORT}`);

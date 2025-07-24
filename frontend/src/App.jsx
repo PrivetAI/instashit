@@ -1,7 +1,6 @@
+import './App.css';
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import './App.css';
-
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 function App() {
@@ -10,6 +9,7 @@ function App() {
   const [selectedJob, setSelectedJob] = useState(null);
   const [loading, setLoading] = useState(false);
   const [captchaWaiting, setCaptchaWaiting] = useState(false);
+  const [authWaiting, setAuthWaiting] = useState(false);
   const [currentJobId, setCurrentJobId] = useState(null);
 
   // Load jobs on mount
@@ -20,19 +20,22 @@ function App() {
   // Poll for status updates
   useEffect(() => {
     const interval = setInterval(async () => {
-      if (currentJobId) {
+      try {
         const statusRes = await axios.get(`${API_URL}/api/status`);
         setCaptchaWaiting(statusRes.data.captchaWaiting);
+        setAuthWaiting(statusRes.data.authWaiting);
         
-        if (statusRes.data.currentJob?.status !== 'running') {
+        if (currentJobId && statusRes.data.currentJob?.status !== 'running') {
           setCurrentJobId(null);
           loadJobs();
           if (selectedJob?.id === currentJobId) {
             loadJobDetails(currentJobId);
           }
         }
+      } catch (error) {
+        console.error('Error polling status:', error);
       }
-    }, 10000);
+    }, 2000); // Poll every 2 seconds
 
     return () => clearInterval(interval);
   }, [currentJobId, selectedJob]);
@@ -71,6 +74,15 @@ function App() {
     }
   };
 
+  const resolveAuth = async () => {
+    try {
+      await axios.post(`${API_URL}/api/auth/resolved`);
+      setAuthWaiting(false);
+    } catch (error) {
+      console.error('Error resolving auth:', error);
+    }
+  };
+
   const resolveCaptcha = async () => {
     try {
       await axios.post(`${API_URL}/api/captcha/resolved`);
@@ -87,10 +99,24 @@ function App() {
       </header>
 
       <div className="container">
+        {/* Auth Alert */}
+        {authWaiting && (
+          <div className="auth-alert">
+            <div>
+              <p>🔐 Please log in to Instagram in the browser window</p>
+              <small>Make sure you're logged in before continuing</small>
+            </div>
+            <button onClick={resolveAuth}>I'm logged in</button>
+          </div>
+        )}
+
         {/* Captcha Alert */}
         {captchaWaiting && (
           <div className="captcha-alert">
-            <p>⚠️ Captcha detected! Please solve it in the browser window.</p>
+            <div>
+              <p>⚠️ Captcha detected! Please solve it in the browser window</p>
+              <small>Click the button after solving the captcha</small>
+            </div>
             <button onClick={resolveCaptcha}>I've solved the captcha</button>
           </div>
         )}
@@ -101,7 +127,7 @@ function App() {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Enter hashtag or keyword"
+            placeholder="Enter hashtag or keyword (without #)"
             onKeyPress={(e) => e.key === 'Enter' && startScraping()}
             disabled={loading || currentJobId}
           />
@@ -111,6 +137,9 @@ function App() {
           >
             {loading ? 'Starting...' : 'Start Scraping'}
           </button>
+          {currentJobId && (
+            <span className="status-text">Job #{currentJobId} is running...</span>
+          )}
         </div>
 
         <div className="main-content">
@@ -118,17 +147,22 @@ function App() {
           <div className="jobs-list">
             <h2>Scraping History</h2>
             {jobs.length === 0 ? (
-              <p>No jobs yet</p>
+              <p className="empty-state">No jobs yet. Start by entering a hashtag above.</p>
             ) : (
               <ul>
                 {jobs.map(job => (
                   <li 
                     key={job.id} 
-                    className={`job-item ${selectedJob?.id === job.id ? 'selected' : ''}`}
+                    className={`job-item ${selectedJob?.id === job.id ? 'selected' : ''} ${job.status}`}
                     onClick={() => loadJobDetails(job.id)}
                   >
-                    <span className="job-query">{job.query}</span>
-                    <span className={`job-status ${job.status}`}>{job.status}</span>
+                    <div className="job-header">
+                      <span className="job-query">#{job.query}</span>
+                      <span className={`job-status ${job.status}`}>
+                        {job.status === 'running' ? '⏳' : job.status === 'completed' ? '✓' : '✗'}
+                        {' '}{job.status}
+                      </span>
+                    </div>
                     <span className="job-date">
                       {new Date(job.created_at).toLocaleString()}
                     </span>
@@ -142,47 +176,69 @@ function App() {
           <div className="job-details">
             {selectedJob ? (
               <>
-                <h2>Job Details: {selectedJob.query}</h2>
-                <div className="videos-container">
-                  {selectedJob.videos?.map(video => (
-                    <div key={video.id} className="video-card">
-                      <div className="video-header">
-                        <a href={video.url} target="_blank" rel="noopener noreferrer">
-                          Video ID: {video.ig_id}
-                        </a>
-                        <p className="video-desc">{video.description}</p>
-                      </div>
-                      
-                      <div className="comments-section">
-                        <h3>Comments ({video.comments?.length || 0})</h3>
-                        {video.comments?.map(comment => (
-                          <div 
-                            key={comment.id} 
-                            className={`comment ${comment.analysis?.relevant ? 'relevant' : 'not-relevant'}`}
-                          >
-                            <div className="comment-header">
-                              <strong>{comment.author}</strong>
-                              <span className="comment-date">
-                                {new Date(comment.posted_at).toLocaleString()}
-                              </span>
-                            </div>
-                            <p className="comment-text">{comment.text}</p>
-                            
-                            {comment.analysis?.relevant && (
-                              <div className="ai-response">
-                                <strong>AI Response:</strong>
-                                <p>{comment.analysis.ai_response}</p>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+                <div className="details-header">
+                  <h2>#{selectedJob.query}</h2>
+                  <span className={`job-status ${selectedJob.status}`}>
+                    {selectedJob.status}
+                  </span>
                 </div>
+                
+                {selectedJob.videos?.length === 0 ? (
+                  <p className="empty-state">No videos found for this job.</p>
+                ) : (
+                  <div className="videos-container">
+                    {selectedJob.videos?.map(video => (
+                      <div key={video.id} className="video-card">
+                        <div className="video-header">
+                          <a href={video.url} target="_blank" rel="noopener noreferrer">
+                            📹 Video: {video.ig_id}
+                          </a>
+                          {video.description && (
+                            <p className="video-desc">{video.description.substring(0, 150)}...</p>
+                          )}
+                        </div>
+                        
+                        <div className="comments-section">
+                          <h3>Comments ({video.comments?.length || 0})</h3>
+                          
+                          {video.comments?.length === 0 ? (
+                            <p className="no-comments">No comments collected</p>
+                          ) : (
+                            video.comments?.map(comment => (
+                              <div 
+                                key={comment.id} 
+                                className={`comment ${comment.analysis?.relevant ? 'relevant' : 'not-relevant'}`}
+                              >
+                                <div className="comment-header">
+                                  <strong>@{comment.author}</strong>
+                                  <span className="comment-date">
+                                    {new Date(comment.posted_at).toLocaleString()}
+                                  </span>
+                                </div>
+                                <p className="comment-text">{comment.text}</p>
+                                
+                                {comment.analysis?.relevant && comment.analysis?.ai_response && (
+                                  <div className="ai-response">
+                                    <div className="ai-header">
+                                      <span>🤖 AI Response</span>
+                                      <span className="relevant-badge">Relevant</span>
+                                    </div>
+                                    <p>{comment.analysis.ai_response}</p>
+                                  </div>
+                                )}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </>
             ) : (
-              <p>Select a job to view details</p>
+              <div className="empty-state">
+                <p>Select a job from the left to view details</p>
+              </div>
             )}
           </div>
         </div>

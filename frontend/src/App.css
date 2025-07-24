@@ -270,3 +270,83 @@ header h1 {
   font-size: 14px;
   color: #333;
 }
+/* Auth Alert */
+.auth-alert {
+  background-color: #e3f2fd;
+  border: 1px solid #90caf9;
+  padding: 15px 20px;
+  margin-bottom: 20px;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  animation: slideDown 0.3s ease-out;
+}
+
+.auth-alert div {
+  flex: 1;
+}
+
+.auth-alert p {
+  margin: 0;
+  color: #1565c0;
+  font-weight: 500;
+}
+
+.auth-alert small {
+  color: #5e92c7;
+  font-size: 12px;
+}
+
+.auth-alert button {
+  background-color: #1976d2;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.auth-alert button:hover {
+  background-color: #1565c0;
+}
+
+/* Captcha Alert */
+.captcha-alert {
+  background-color: #fff3cd;
+  border: 1px solid #ffeaa7;
+  padding: 15px 20px;
+  margin-bottom: 20px;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  animation: slideDown 0.3s ease-out;
+}
+
+.captcha-alert div {
+  flex: 1;
+}
+
+.captcha-alert p {
+  margin: 0;
+  color: #856404;
+  font-weight: 500;
+}
+
+.captcha-alert small {
+  color: #b19043;
+  font-size: 12px;
+}
+
+.captcha-alert button {
+  background-color: #ffc107;
+  color: #333;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+}
