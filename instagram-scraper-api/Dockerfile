@@ -1,9 +1,11 @@
 FROM node:18-alpine
 
-# Install Chromium and dependencies
+# Install Chromium, OpenSSL and other dependencies
 RUN apk add --no-cache \
     chromium \
-    ca-certificates
+    ca-certificates \
+    openssl \
+    libc6-compat
 
 # Configure Puppeteer
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
@@ -19,11 +21,11 @@ COPY prisma ./prisma/
 # Install dependencies
 RUN npm install
 
-# Copy source code
-COPY . .
-
 # Generate Prisma client
 RUN npx prisma generate
+
+# Copy source code
+COPY . .
 
 EXPOSE 3000
 

@@ -65,17 +65,16 @@ services:
     depends_on:
       - api
     environment:
-      VITE_API_URL: ${VITE_API_URL:-http://localhost:3000/api}
+      VITE_API_URL: http://localhost:3000/api
     ports:
       - "${UI_PORT:-5173}:5173"
     volumes:
-      - ./instagram-scraper-ui:/app
-      - ui_node_modules:/app/node_modules
-    command: >
-      sh -c "
-        npm install &&
-        npm run dev
-      "
+      - ./instagram-scraper-ui/src:/app/src
+      - ./instagram-scraper-ui/public:/app/public
+      - ./instagram-scraper-ui/index.html:/app/index.html
+      - ./instagram-scraper-ui/vite.config.ts:/app/vite.config.ts
+      - ./instagram-scraper-ui/tsconfig.json:/app/tsconfig.json
+      - ./instagram-scraper-ui/tsconfig.node.json:/app/tsconfig.node.json
 
 volumes:
   postgres_data:
